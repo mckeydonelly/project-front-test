@@ -1,11 +1,378 @@
 <html>
 <head>
+    <meta charset="utf-8">
     <title>RPG</title>
     <script src=https://code.jquery.com/jquery-3.6.0.min.js></script>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css" rel="stylesheet"
+          integrity="sha384-EVSTQN3/azprG1Anm3QDgpJLIm9Nao0Yz1ztcQTwFspd3yD65VohhpuuCOmLASjC" crossorigin="anonymous">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.8.3/font/bootstrap-icons.css">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/js/bootstrap.bundle.min.js"
+            integrity="sha384-MrcW6ZMFYlzcLA8Nl+NtUVF0sA7MsXsP1UyJoMp4YLEuNSfAP+JcXn/tWtIaxVXM"
+            crossorigin="anonymous"></script>
     <link href="/css/my.css" rel="stylesheet">
-</head>
-<body>
-<h1>RPG admin panel</h1>
+    <script>
+        function calculateGetListUrl(countPerPage, pageNumber) {
+            let url = "/rest/players?";
 
+            if (countPerPage == null) {
+                countPerPage = 3;
+            }
+            url = url.concat("pageSize=").concat(countPerPage);
+
+            if (pageNumber == null) {
+                pageNumber = 0;
+            }
+            url = url.concat("&pageNumber=").concat(pageNumber);
+
+            return url;
+        }
+
+        function getPlayersCount() {
+            let url = "/rest/players/count";
+            let res = 0;
+
+            $.ajax({
+                url: url,
+                async: false,
+                success: function (response) {
+                    res = parseInt(response);
+                }
+            })
+
+            return res;
+        }
+
+        function pagination(countPerPage) {
+            let playerCounts = getPlayersCount();
+            let pagesCount = Math.ceil(playerCounts / countPerPage);
+
+            $("button.btn.btn-secondary").remove();
+
+            for (let i = 0; i < pagesCount; i++) {
+                let button_tag = "<button>" + (i + 1) + "</button>";
+                let btn = $(button_tag)
+                    .attr('id', "paging-button-" + i)
+                    .attr('onClick', "showList(" + i + ")")
+                    .addClass('btn btn-secondary');
+                $("#paging-buttons").append(btn);
+            }
+        }
+
+        function setActiveButton(buttonNumber) {
+            let selectedButton = "#paging-button-" + buttonNumber;
+            $(selectedButton).addClass('active');
+        }
+
+        function deleteAccount(id) {
+            let url = "/rest/players/" + id;
+            $.ajax({
+                url: url,
+                type: 'DELETE',
+                success: function () {
+                    showList(getCurrentPage());
+                }
+            })
+        }
+
+        function getCurrentPage() {
+            let currentPage = 1;
+            $("button:parent(div)").each(function () {
+                if ($(this).hasClass('active')) {
+                    currentPage = $(this).text();
+                }
+            })
+
+            return parseInt(currentPage) - 1;
+        }
+
+        function createAccount() {
+            let value_name = $("#input-name-new").val();
+            let value_title = $("#input-title-new").val();
+            let value_race = $("#select-race-new").val();
+            let value_profession = $("#select-profession-new").val();
+            let value_level = $("#input-level-new").val();
+            let value_birthday = $("#calendar-birthday-new").val();
+            let value_banned = $("#select-banned-new").val();
+
+            let url = "/rest/players/";
+
+            $.ajax({
+                url: url,
+                type: "POST",
+                dataType: "json",
+                contentType: "application/json;charset=UTF-8",
+                async: false,
+                data: JSON.stringify({
+                    "name": value_name,
+                    "title": value_title,
+                    "race": value_race,
+                    "profession": value_profession,
+                    "level": value_level,
+                    "birthday": new Date(value_birthday).getTime(),
+                    "banned": value_banned
+                }),
+                success: function () {
+                    $("#input-name-new").val("");
+                    $("#input-title-new").val("");
+                    $("#select-race-new").val("");
+                    $("#select-profession-new").val("");
+                    $("#input-level-new").val("");
+                    $("#calendar-birthday-new").val("");
+                    $("#select-banned-new").val("");
+                    showList(getCurrentPage());
+                }
+            });
+        }
+
+        function saveAccount(id) {
+            let value_name = $("#input-name-" + id).val();
+            let value_title = $("#input-title-" + id).val();
+            let value_race = $("#select-race-" + id).val();
+            let value_profession = $("#select-profession-" + id).val();
+            let value_banned = $("#select-banned-" + id).val();
+
+            let url = "/rest/players/" + id;
+
+            $.ajax({
+                url: url,
+                type: "POST",
+                dataType: "json",
+                contentType: "application/json;charset=UTF-8",
+                async: false,
+                data: JSON.stringify({
+                    "name": value_name,
+                    "title": value_title,
+                    "race": value_race,
+                    "profession": value_profession,
+                    "banned": value_banned
+                }),
+                success: function () {
+                    showList(getCurrentPage());
+                }
+            });
+        }
+
+        function editAccount(id) {
+            let editButtonId = "#button-edit-" + id;
+            let deleteButtonId = "#button-delete-" + id;
+
+            $(deleteButtonId).remove();
+
+            let saveImageTag = "<img src='/img/save.png'>";
+            $(editButtonId).html(saveImageTag);
+            let propertySaveTag = "saveAccount(" + id + ")";
+            $(editButtonId).attr('onclick', propertySaveTag);
+
+            let rowData = $(editButtonId).parent().parent().children();
+
+            let tdName = rowData[1];
+            tdName.innerHTML = "<input class='form-control form-control-sm' id='input-name-" + id + "' type='text' value='" + tdName.innerHTML + "'>";
+
+            let tdTitle = rowData[2];
+            tdTitle.innerHTML = "<input class='form-control form-control-sm' id='input-title-" + id + "' type='text' value='" + tdTitle.innerHTML + "'>";
+
+            let tdRace = rowData[3];
+            let raceSelectorId = "#select-race-" + id;
+            let raceCurrentValue = tdRace.innerHTML;
+            tdRace.innerHTML = getDropDownRaceHtml(id);
+            $(raceSelectorId).val(raceCurrentValue).change();
+
+            let tdProfession = rowData[4];
+            let professionSelectorId = "#select-profession-" + id;
+            let professionCurrentValue = tdProfession.innerHTML;
+            tdProfession.innerHTML = getDropDownProfessionHtml(id);
+            $(professionSelectorId).val(professionCurrentValue).change();
+
+            let tdBanned = rowData[7];
+            let bannedSelectorId = "#select-banned-" + id;
+            let bannedCurrentValue = tdBanned.innerHTML;
+            tdBanned.innerHTML = getDropDownBannedHtml(id);
+            $(bannedSelectorId).val(bannedCurrentValue).change();
+        }
+
+        function getDropDownRaceHtml(id) {
+            let raceSelectorId = "select-race-" + id;
+            return "<label class='d-inline-block' for='race-selector'></label>"
+                + "<select class='form-control form-control-sm d-inline-block' style='width: auto;' id='" + raceSelectorId + "' name='race-selector'>"
+                + "<option value='HUMAN'>HUMAN</option>"
+                + "<option value='DWARF'>DWARF</option>"
+                + "<option value='ELF'>ELF</option>"
+                + "<option value='GIANT'>GIANT</option>"
+                + "<option value='ORC'>ORC</option>"
+                + "<option value='TROLL'>TROLL</option>"
+                + "<option value='HOBBIT'>HOBBIT</option>"
+                + "</select>";
+        }
+
+        function getDropDownProfessionHtml(id) {
+            let professionSelectorId = "select-profession-" + id;
+            return "<label class='d-inline-block' for='profession-selector'></label>"
+                + "<select class='form-control form-control-sm d-inline-block' style='width: auto;' id='" + professionSelectorId + "' name='profession-selector'>"
+                + "<option value='WARRIOR'>WARRIOR</option>"
+                + "<option value='ROGUE'>ROGUE</option>"
+                + "<option value='SORCERER'>SORCERER</option>"
+                + "<option value='CLERIC'>CLERIC</option>"
+                + "<option value='PALADIN'>PALADIN</option>"
+                + "<option value='NAZGUL'>NAZGUL</option>"
+                + "<option value='WARLOCK'>WARLOCK</option>"
+                + "<option value='DRUID'>DRUID</option>"
+                + "</select>";
+        }
+
+        function getDropDownBannedHtml(id) {
+            let bannedSelectorId = "select-banned-" + id;
+            return "<label class='d-inline-block' for='banned-selector'></label>"
+                + "<select class='form-control form-control-sm d-inline-block' style='width: auto;' id='" + bannedSelectorId + "' name='banned-selector'>"
+                + "<option value='true'>true</option>"
+                + "<option value='false'>false</option>"
+                + "</select>";
+        }
+
+        function showList(pageNumber) {
+            $("tr:has(td)").remove();
+
+            let countPerPage = $("#count-per-page").val();
+            let url = calculateGetListUrl(countPerPage, pageNumber);
+
+            $.get(url, function (response) {
+                $.each(response, function (index, item) {
+                    let row = $('<tr>').html("<td>"
+                        + item.id + "</td><td>"
+                        + item.name + "</td><td>"
+                        + item.title + "</td><td>"
+                        + item.race + "</td><td>"
+                        + item.profession + "</td><td>"
+                        + item.level + "</td><td>"
+                        + new Date(item.birthday).toLocaleDateString() + "</td><td>"
+                        + item.banned + "</td><td>"
+                        + "<button id='button-edit-" + item.id + "' onclick='editAccount(" + item.id + ")'>"
+                        + "<img src='/img/edit.png'>"
+                        + "</button>" + "</td><td>"
+                        + "<button id='button-delete-" + item.id + "' onclick='deleteAccount(" + item.id + ")'>"
+                        + "<img src='/img/delete.png'>"
+                        + "</button>" + "</td>"
+                    ).appendTo("#account-list-table");
+                });
+            });
+
+            pagination(countPerPage);
+            setActiveButton(pageNumber);
+        }
+    </script>
+</head>
+<body onload="showList(0)">
+
+<div class="container px-4 py-5">
+    <h1 class="pb-2 border-bottom">RPG admin panel</h1>
+    <h2>Account list</h2>
+    <div class="row py-5">
+
+        <div class="input-group w-25 p-3">
+            <label class="input-group-text" for="count-per-page">Count per page:</label>
+            <select class="form-select w-25" id="count-per-page" name="count-per-page" onchange="showList(0)">
+                <option value="3">3</option>
+                <option value="5">5</option>
+                <option value="10">10</option>
+                <option value="15">15</option>
+                <option value="20">20</option>
+            </select>
+        </div>
+
+        <div class="table-responsive">
+            <table id="account-list-table" class="table table-striped align-middle table-bordered">
+                <thead class="thead-dark">
+                <tr>
+                    <th scope="col">#</th>
+                    <th scope="col">Name</th>
+                    <th scope="col">Title</th>
+                    <th scope="col">Race</th>
+                    <th scope="col">Profession</th>
+                    <th scope="col">Level</th>
+                    <th scope="col">Birthday</th>
+                    <th scope="col">Banned</th>
+                    <th scope="col">Edit</th>
+                    <th scope="col">Delete</th>
+                </tr>
+                </thead>
+                <tbody>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="btn-group" role="group" id="paging-form">
+            <a href="#" role="button" class="btn btn-success btn-xs disabled btn-block" id="label-btn"
+               aria-disabled="true">Pages:</a>
+            <div class="btn-group mr-2" role="group" id="paging-buttons">
+            </div>
+        </div>
+        <div class="col-md-7 col-lg-8">
+            <h2 class="py-3">Create new account</h2>
+            <form id="form-create" onsubmit="createAccount(); return false;">
+                <div class="row g-3">
+                    <div class="col-sm-6">
+                        <label class="form-label" for="input-name-new">Name:</label>
+                        <input class='form-control' type="text" id="input-name-new"
+                               name="input-name-new" required size="12" maxlength="12">
+                        <div class="form-text">text, 1-12 characters long</div>
+                    </div>
+                    <div class="col-sm-6">
+                        <label class="form-label" for="input-title-new">Title:</label>
+                        <input class='form-control' type="text" id="input-title-new"
+                               name="input-name-new" required size="30" maxlength="30">
+                        <div class="form-text">text, 1-30 characters long</div>
+                    </div>
+                </div>
+                <div class="row g-3">
+                    <div class="col-md-5">
+                        <label class="form-label" for="select-race-new">Race:</label>
+                        <select class="form-select" id="select-race-new" name='select-race-new'>
+                            <option value='HUMAN'>HUMAN</option>
+                            <option value='DWARF'>DWARF</option>
+                            <option value='ELF'>ELF</option>
+                            <option value='GIANT'>GIANT</option>
+                            <option value='ORC'>ORC</option>
+                            <option value='TROLL'>TROLL</option>
+                            <option value='HOBBIT'>HOBBIT</option>
+                        </select>
+                    </div>
+                    <div class="col-md-5">
+                        <label class="form-label" for="select-profession-new">Profession:</label>
+                        <select class="form-select" id="select-profession-new" name='select-profession-new'>
+                            <option value='WARRIOR'>WARRIOR</option>
+                            <option value='ROGUE'>ROGUE</option>
+                            <option value='SORCERER'>SORCERER</option>
+                            <option value='CLERIC'>CLERIC</option>
+                            <option value='PALADIN'>PALADIN</option>
+                            <option value='NAZGUL'>NAZGUL</option>
+                            <option value='WARLOCK'>WARLOCK</option>
+                            <option value='DRUID'>DRUID</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <label for="input-level-new" class="form-label">Level</label>
+                        <input type="number" class="form-control" id="input-level-new" min="0" max="100" required="">
+                        <div class="form-text">number, 0-100</div>
+                    </div>
+                </div>
+                <div class="row g-3">
+                    <div class="col-sm-6">
+                        <label for="calendar-birthday-new" class="form-label">Birthday</label>
+                        <input type="date" class="form-control" id="calendar-birthday-new" min="2000-01-01" max="3000-12-31" value="" required="">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label" for="select-banned-new">Banned:</label>
+                        <select class="form-select" id="select-banned-new" name='select-banned-new'>
+                            <option value='true'>true</option>
+                            <option value='false'>false</option>
+                        </select>
+                    </div>
+                </div>
+                <hr class="my-4">
+                <input id="save-account-btn" class="w-100 btn btn-primary btn-lg" type="submit"
+                       value="Save"/>
+            </form>
+        </div>
+    </div>
+</div>
 </body>
 </html>
